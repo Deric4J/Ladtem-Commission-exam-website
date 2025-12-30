@@ -5,12 +5,21 @@ export enum UserRole {
   ADMIN = 'ADMIN'
 }
 
+export interface AttendanceRecord {
+  id: string;
+  userId: string;
+  examId: string;
+  timestamp: string;
+  status: 'PRESENT';
+}
+
 export interface User {
   id: string;
   name: string;
   email: string;
   role: UserRole;
   isPresent?: boolean;
+  isConfirmed?: boolean;
   lastActive?: string;
   // Student specific fields
   department?: string;
@@ -22,7 +31,8 @@ export interface User {
 export enum ActivityType {
   LOGIN = 'LOGIN',
   SIGNUP = 'SIGNUP',
-  SUBMISSION = 'SUBMISSION'
+  SUBMISSION = 'SUBMISSION',
+  ATTENDANCE = 'ATTENDANCE'
 }
 
 export interface ActivityLog {

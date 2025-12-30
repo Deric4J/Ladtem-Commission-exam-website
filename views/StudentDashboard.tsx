@@ -1,16 +1,55 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Card, Button, Badge } from '../components/Common';
+import { LOGO_URL } from '../constants';
 import ExamTaking from './ExamTaking';
 
 const StudentDashboard: React.FC = () => {
-  const { exams, submissions, currentUser } = useApp();
+  const { exams, submissions, currentUser, allUsers } = useApp();
   const [activeExamId, setActiveExamId] = useState<string | null>(null);
 
+  // Sync isConfirmed from registry in case admin confirms while student is logged in
+  const registryUser = allUsers.find(u => u.id === currentUser?.id);
+  const isConfirmed = registryUser?.isConfirmed || currentUser?.isConfirmed;
+
   const studentSubmissions = submissions.filter(s => s.studentId === currentUser?.id);
-  
   const getSubmissionForExam = (examId: string) => studentSubmissions.find(s => s.examId === examId);
+
+  if (!isConfirmed) {
+    return (
+      <div className="max-w-xl mx-auto py-20 animate-in fade-in zoom-in-95 duration-700">
+        <Card className="text-center overflow-hidden border-none shadow-2xl">
+          <div className="bg-blue-600 p-8 flex flex-col items-center justify-center">
+            <div className="w-24 h-24 bg-white rounded-[2rem] p-4 shadow-xl mb-6">
+              <img src={LOGO_URL} alt="LADTEM" className="w-full h-full object-contain" />
+            </div>
+            <h2 className="text-white text-2xl font-black tracking-tight">Access Restricted</h2>
+            <p className="text-blue-100 text-sm mt-1 uppercase font-bold tracking-widest">Awaiting Commission Verification</p>
+          </div>
+          <div className="p-10 space-y-6">
+            <div className="space-y-4">
+              <p className="text-slate-600 leading-relaxed font-medium">
+                Greetings, <span className="text-slate-900 font-bold">{currentUser?.name}</span>. Your registration (Matric: <span className="font-mono font-black text-blue-600">{currentUser?.matricNumber}</span>) has been logged.
+              </p>
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-4 text-left">
+                <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center flex-shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+                </div>
+                <p className="text-xs text-slate-500 font-bold leading-normal">
+                  An administrator must manually verify your identity before you can proceed to examinations. Please contact your department if this persists.
+                </p>
+              </div>
+            </div>
+            
+            <div className="pt-6 border-t border-slate-100">
+              <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em]">Status: Pending Authorization</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   if (activeExamId) {
     const exam = exams.find(e => e.id === activeExamId);

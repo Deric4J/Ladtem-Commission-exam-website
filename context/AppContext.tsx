@@ -1,15 +1,19 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, Exam, Submission, UserRole, QuestionType, ActivityLog, ActivityType } from '../types';
+import { User, Exam, Submission, UserRole, QuestionType, ActivityLog, ActivityType, AttendanceRecord } from '../types';
 
 interface AppContextType {
   currentUser: User | null;
   allUsers: User[];
   exams: Exam[];
   submissions: Submission[];
+  attendanceRecords: AttendanceRecord[];
   activityLogs: ActivityLog[];
   login: (role: UserRole, name: string, email: string, isSignUp: boolean, metadata?: { department?: string, matricNumber?: string, yearOfAdmission?: string, institute?: string }) => void;
   logout: () => void;
+  confirmStudent: (studentId: string) => void;
+  markAttendance: (examId: string) => void;
+  deleteUser: (userId: string) => void;
   addExam: (exam: Exam) => void;
   addSubmission: (submission: Submission) => void;
   updateSubmission: (submissionId: string, updates: Partial<Submission>) => void;
@@ -45,11 +49,11 @@ const MOCK_EXAMS: Exam[] = [
   }
 ];
 
-// Pre-fill some mock students for the Admin view
 const MOCK_USERS: User[] = [
-  { id: 's1', name: 'Alice Johnson', email: 'alice@ladtem.org', role: UserRole.STUDENT, institute: 'DFMI', matricNumber: 'DF/23/001', isPresent: false },
-  { id: 's2', name: 'Bob Smith', email: 'bob@ladtem.org', role: UserRole.STUDENT, institute: 'IES', matricNumber: 'IE/23/042', isPresent: false },
-  { id: 'x1', name: 'Dr. Sarah', email: 'sarah@ladtem.org', role: UserRole.EXAMINER, isPresent: false }
+  { id: 's1', name: 'Alice Johnson', email: 'alice@ladtem.org', role: UserRole.STUDENT, institute: 'DFMI', matricNumber: 'DF/23/001', isPresent: false, isConfirmed: true },
+  { id: 's2', name: 'Bob Smith', email: 'bob@ladtem.org', role: UserRole.STUDENT, institute: 'IES', matricNumber: 'IE/23/042', isPresent: false, isConfirmed: false },
+  { id: 'admin_1', name: 'Super Admin', email: 'admin@ladtem.org', role: UserRole.ADMIN, isPresent: false, isConfirmed: true },
+  { id: 'x1', name: 'Dr. Sarah', email: 'sarah@ladtem.org', role: UserRole.EXAMINER, isPresent: false, isConfirmed: true }
 ];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -70,6 +74,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [submissions, setSubmissions] = useState<Submission[]>(() => {
     const saved = localStorage.getItem('ladtem_submissions');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() => {
+    const saved = localStorage.getItem('ladtem_attendance');
     return saved ? JSON.parse(saved) : [];
   });
 
@@ -95,18 +104,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [submissions]);
 
   useEffect(() => {
+    localStorage.setItem('ladtem_attendance', JSON.stringify(attendanceRecords));
+  }, [attendanceRecords]);
+
+  useEffect(() => {
     localStorage.setItem('ladtem_logs', JSON.stringify(activityLogs));
   }, [activityLogs]);
 
   const login = (role: UserRole, name: string, email: string, isSignUp: boolean, metadata?: { department?: string, matricNumber?: string, yearOfAdmission?: string, institute?: string }) => {
-    // Check if user already exists in registry by email
     const existingUser = allUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
     
     let userToAuth: User;
 
     if (existingUser) {
-      userToAuth = { ...existingUser, isPresent: true, lastActive: new Date().toISOString() };
-      // Update the registry
+      const confirmedStatus = existingUser.role !== UserRole.STUDENT ? true : existingUser.isConfirmed;
+      userToAuth = { ...existingUser, isPresent: true, isConfirmed: confirmedStatus, lastActive: new Date().toISOString() };
       setAllUsers(prev => prev.map(u => u.id === existingUser.id ? userToAuth : u));
     } else {
       const userId = `u_${Date.now()}`;
@@ -116,13 +128,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         email: email.toLowerCase(),
         role,
         isPresent: true,
+        isConfirmed: role !== UserRole.STUDENT, 
         lastActive: new Date().toISOString(),
         ...metadata
       };
       setAllUsers(prev => [...prev, userToAuth]);
     }
     
-    // Record Activity
     const newLog: ActivityLog = {
       id: `log_${Date.now()}`,
       userId: userToAuth.id,
@@ -130,7 +142,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userRole: role,
       type: isSignUp ? ActivityType.SIGNUP : ActivityType.LOGIN,
       timestamp: new Date().toISOString(),
-      details: isSignUp ? `New ${role.toLowerCase()} registration` : `Successful ${role.toLowerCase()} authentication (Marked Present)`
+      details: isSignUp ? `New registration` : `Successful authentication`
     };
 
     setActivityLogs(prev => [newLog, ...prev]);
@@ -144,6 +156,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser(null);
   };
 
+  const confirmStudent = (studentId: string) => {
+    setAllUsers(prev => prev.map(u => u.id === studentId ? { ...u, isConfirmed: true } : u));
+    if (currentUser?.id === studentId) {
+      setCurrentUser(prev => prev ? { ...prev, isConfirmed: true } : null);
+    }
+  };
+
+  const markAttendance = (examId: string) => {
+    if (!currentUser || currentUser.role !== UserRole.STUDENT) return;
+
+    // Avoid duplicate attendance for the same exam
+    const exists = attendanceRecords.some(r => r.userId === currentUser.id && r.examId === examId);
+    if (exists) return;
+
+    const newRecord: AttendanceRecord = {
+      id: `att_${Date.now()}`,
+      userId: currentUser.id,
+      examId,
+      timestamp: new Date().toISOString(),
+      status: 'PRESENT'
+    };
+
+    const exam = exams.find(e => e.id === examId);
+    const newLog: ActivityLog = {
+      id: `log_att_${Date.now()}`,
+      userId: currentUser.id,
+      userName: currentUser.name,
+      userRole: UserRole.STUDENT,
+      type: ActivityType.ATTENDANCE,
+      timestamp: new Date().toISOString(),
+      details: `Marked present for exam: ${exam?.title}`
+    };
+
+    setAttendanceRecords(prev => [...prev, newRecord]);
+    setActivityLogs(prev => [newLog, ...prev]);
+  };
+
+  const deleteUser = (userId: string) => {
+    setAllUsers(prev => prev.filter(u => u.id !== userId));
+  };
+
   const addExam = (exam: Exam) => setExams(prev => [...prev, exam]);
 
   const addSubmission = (submission: Submission) => {
@@ -154,7 +207,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userRole: UserRole.STUDENT,
       type: ActivityType.SUBMISSION,
       timestamp: new Date().toISOString(),
-      details: `Submitted exam response for ID: ${submission.examId}`
+      details: `Submitted exam response`
     };
     setActivityLogs(prev => [newLog, ...prev]);
     setSubmissions(prev => [...prev, submission]);
@@ -170,9 +223,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       allUsers,
       exams,
       submissions,
+      attendanceRecords,
       activityLogs,
       login,
       logout,
+      confirmStudent,
+      markAttendance,
+      deleteUser,
       addExam,
       addSubmission,
       updateSubmission

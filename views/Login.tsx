@@ -1,12 +1,12 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { UserRole } from '../types';
 import { Card, Button } from '../components/Common';
 import { Icons, LOGO_URL } from '../constants';
 
 const Login: React.FC = () => {
-  const { login } = useApp();
+  const { login, allUsers } = useApp();
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [hoveredRole, setHoveredRole] = useState<UserRole | null>(null);
   const [isSignUp, setIsSignUp] = useState(false);
@@ -15,6 +15,7 @@ const Login: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [generalError, setGeneralError] = useState('');
   
   // Student Specific State
   const [department, setDepartment] = useState('');
@@ -24,9 +25,16 @@ const Login: React.FC = () => {
   
   const [isLoading, setIsLoading] = useState(false);
 
+  // Clear errors when switching tabs
+  useEffect(() => {
+    setEmailError('');
+    setGeneralError('');
+  }, [isSignUp, selectedRole]);
+
   const handleAuthenticate = (e: React.FormEvent) => {
     e.preventDefault();
     setEmailError('');
+    setGeneralError('');
 
     if (!selectedRole) return;
 
@@ -37,17 +45,35 @@ const Login: React.FC = () => {
     }
     
     setIsLoading(true);
-    
-    // Only send metadata if it's a student and they are signing up
-    const metadata = (selectedRole === UserRole.STUDENT && isSignUp) ? {
-      department,
-      matricNumber,
-      yearOfAdmission,
-      institute
-    } : undefined;
 
     // Simulate authentication delay
     setTimeout(() => {
+      const userExists = allUsers.some(u => u.email.toLowerCase() === email.toLowerCase());
+
+      if (!isSignUp && !userExists) {
+        // User is trying to login but doesn't exist
+        setIsSignUp(true);
+        setGeneralError('Account not found. Please complete your registration to join the commission.');
+        setIsLoading(false);
+        return;
+      }
+
+      if (isSignUp && userExists) {
+        // User is trying to signup but already exists
+        setIsSignUp(false);
+        setGeneralError('An account with this email already exists. Please sign in instead.');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Only send metadata if it's a student and they are signing up
+      const metadata = (selectedRole === UserRole.STUDENT && isSignUp) ? {
+        department,
+        matricNumber,
+        yearOfAdmission,
+        institute
+      } : undefined;
+
       login(selectedRole, name, email, isSignUp, metadata);
       setIsLoading(false);
     }, 800);
@@ -61,6 +87,7 @@ const Login: React.FC = () => {
             onClick={() => {
               setSelectedRole(null);
               setEmailError('');
+              setGeneralError('');
               setIsSignUp(false);
             }}
             className="mb-8 flex items-center gap-2 text-xs font-black text-slate-400 hover:text-blue-600 transition-colors group tracking-widest uppercase"
@@ -97,6 +124,15 @@ const Login: React.FC = () => {
               </div>
             )}
 
+            {generalError && (
+              <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 animate-in slide-in-from-top-2">
+                <div className="text-amber-600 mt-0.5"><Icons.Search /></div>
+                <p className="text-xs font-bold text-amber-800 leading-relaxed">
+                  {generalError}
+                </p>
+              </div>
+            )}
+
             <form onSubmit={handleAuthenticate} className="space-y-4">
               <div className="grid grid-cols-1 gap-4">
                 <div>
@@ -122,6 +158,7 @@ const Login: React.FC = () => {
                     onChange={(e) => {
                       setEmail(e.target.value);
                       if (emailError) setEmailError('');
+                      if (generalError) setGeneralError('');
                     }}
                     placeholder="name@ladtem.org"
                     className={`w-full h-11 px-4 rounded-xl border outline-none transition-all font-medium ${
@@ -199,9 +236,7 @@ const Login: React.FC = () => {
                   className="w-full h-12 text-sm font-black uppercase tracking-widest shadow-xl"
                   variant={selectedRole === UserRole.ADMIN ? 'outline' : (selectedRole === UserRole.EXAMINER ? 'secondary' : 'primary')}
                 >
-                  {selectedRole === UserRole.STUDENT 
-                    ? (isSignUp ? 'Create Student Account' : 'Authenticate Session') 
-                    : 'Access Security Hub'}
+                  {isSignUp ? 'Create New Account' : 'Authenticate Session'}
                 </Button>
               </div>
             </form>

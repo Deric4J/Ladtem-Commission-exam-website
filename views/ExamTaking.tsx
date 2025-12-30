@@ -10,12 +10,15 @@ interface ExamTakingProps {
 }
 
 const ExamTaking: React.FC<ExamTakingProps> = ({ exam, onComplete }) => {
-  const { currentUser, addSubmission } = useApp();
+  const { currentUser, addSubmission, markAttendance } = useApp();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [timeLeft, setTimeLeft] = useState(exam.durationMinutes * 60);
 
   useEffect(() => {
+    // Mark attendance immediately when the exam starts
+    markAttendance(exam.id);
+
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
@@ -27,7 +30,7 @@ const ExamTaking: React.FC<ExamTakingProps> = ({ exam, onComplete }) => {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [exam.id]);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
