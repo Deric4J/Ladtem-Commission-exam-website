@@ -22,12 +22,14 @@ export const Card: React.FC<CardProps> = ({ children, title, className = "", act
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'outline' | 'danger';
+  size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
 }
 
 export const Button: React.FC<ButtonProps> = ({ 
   children, 
   variant = 'primary', 
+  size = 'md',
   className = "", 
   isLoading, 
   ...props 
@@ -39,11 +41,17 @@ export const Button: React.FC<ButtonProps> = ({
     danger: 'bg-red-600 text-white hover:bg-red-700 shadow-red-200/50'
   };
 
+  const sizes = {
+    sm: 'px-3 py-1.5 text-xs',
+    md: 'px-4 py-2 text-sm',
+    lg: 'px-6 py-3 text-base'
+  };
+
   return (
     <button 
       className={`
-        relative flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-all shadow-lg active:scale-95 disabled:opacity-60 disabled:pointer-events-none
-        ${variants[variant]} ${className}
+        relative flex items-center justify-center gap-2 rounded-lg font-medium transition-all shadow-lg active:scale-95 disabled:opacity-60 disabled:pointer-events-none
+        ${variants[variant]} ${sizes[size]} ${className}
       `}
       {...props}
     >
