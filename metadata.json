@@ -1,0 +1,8 @@
+{
+  "name": "Ladtem AI Examination Platform",
+  "description": "A modern AI-powered platform for the Ladtem Commission to manage, conduct, and automatically grade examinations with ethical AI oversight.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
